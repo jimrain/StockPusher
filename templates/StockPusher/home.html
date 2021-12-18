@@ -1,0 +1,150 @@
+{% load static %}
+<html>
+<head>
+    <title>Stock Chart over WebSocket</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+    <style type="text/css">
+        html, body {
+            height: 100%;
+        }
+    </style>
+    <script src="{% static 'django_eventstream/json2.js' %}"></script>
+    <script src="{% static 'django_eventstream/eventsource.min.js' %}"></script>
+    <script src="{% static 'django_eventstream/reconnecting-eventsource.js' %}"></script>
+    <script>
+        var logMessage = function (s) {
+            /*
+          var outputDiv = document.getElementById('output');
+          outputDiv.innerHTML = outputDiv.innerHTML + s + '<br />';
+             */
+            console.log(s);
+        };
+
+        var start = function () {
+            var stock_request = {
+                "stocks": ["AAPL", "MSFT", "AMZN", "GOOG", "YHOO"]
+            };
+
+            var stocks = {
+                "AAPL": 0,
+                "MSFT": 0,
+                "AMZN": 0,
+                "GOOG": 0,
+                "YHOO": 0
+            }
+
+            logMessage('connecting...');
+            $('#AAPL span').toggleClass('label-success');
+
+            {% if last_id %}
+                console.log('url|save: ' + '{{ url|safe }}');
+                console.log('last_id: ' + '{{ last_id }}');
+                var es = new ReconnectingEventSource('{{ url|safe }}', {
+                    lastEventId: '{{ last_id }}'
+                });
+
+            {% else %}
+                var es = new ReconnectingEventSource('{{ url|safe }}');
+            {% endif %}
+
+            es.onopen = function () {
+                logMessage('connected');
+            };
+
+            es.onerror = function () {
+                logMessage('connection error');
+            };
+
+            es.addEventListener('stream-reset', function (e) {
+                e = JSON.parse(e.data);
+                logMessage('stream reset: ' + JSON.stringify(e.channels));
+            }, false);
+
+            es.addEventListener('stream-error', function (e) {
+                // hard stop
+                es.close();
+                e = JSON.parse(e.data);
+                logMessage('stream error: ' + e.condition + ': ' + e.text);
+            }, false);
+
+            var changeStockEntry = function (symbol, originalValue, newValue) {
+                var valElem = $('#' + symbol + ' span');
+                valElem.html(newValue.toFixed(2));
+                if (newValue < originalValue) {
+                    logMessage("Going to danger!");
+                    valElem.addClass('label-danger');
+                    valElem.removeClass('label-success');
+                } else if (newValue > originalValue) {
+                    logMessage("Going to success!");
+                    valElem.addClass('label-success');
+                    valElem.removeClass('label-danger');
+                }
+            }
+
+            es.addEventListener('message', function (e) {
+                // logMessage('message: ' + e.data);
+
+                var stocksData = JSON.parse(e.data);
+                // logMessage('stackData: ' + stocksData);
+                for (var symbol in stocksData) {
+                    // logMessage('symbol: ' + symbol);
+                    if (stocksData.hasOwnProperty(symbol)) {
+                        logMessage('Stock value: ' + stocksData[symbol] + " stocks value: " + stocks[symbol]);
+                        changeStockEntry(symbol, stocksData[symbol], stocks[symbol]);
+                        stocks[symbol] = stocksData[symbol];
+                    }
+                }
+
+            }, false);
+        };
+    </script>
+</head>
+
+<body lang="en" onload="start()">
+<div class="vertical-center">
+    <div class="container">
+
+        <h1>Stock Chart over WebSocket</h1>
+        <table class="table" id="stockTable">
+            <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Price</th>
+            </tr>
+            </thead>
+            <tbody id="stockRows">
+            <tr>
+                <td><h3>AAPL</h3></td>
+                <td id="AAPL"><h3><span class="label label-default">95.00</span></h3></td>
+            </tr>
+            <tr>
+                <td><h3>MSFT</h3></td>
+                <td id="MSFT"><h3><span class="label label-default">50.00</span></h3></td>
+            </tr>
+            <tr>
+                <td><h3>AMZN</h3></td>
+                <td id="AMZN"><h3><span class="label label-default">300.00</span></h3></td>
+            </tr>
+            <tr>
+                <td><h3>GOOG</h3></td>
+                <td id="GOOG"><h3><span class="label label-default">550.00</span></h3></td>
+            </tr>
+            <tr>
+                <td><h3>YHOO</h3></td>
+                <td id="YHOO"><h3><span class="label label-default">35.00</span></h3></td>
+            </tr>
+            </tbody>
+        </table>
+
+    </div>
+</div>
+<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+</body>
+
+</html>
